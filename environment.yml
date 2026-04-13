@@ -1,0 +1,37 @@
+name: corrdiff_pipeline
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+
+  # Core scientific stack
+  - numpy
+  - scipy
+  - xarray
+  - netCDF4
+  - dask
+  - pandas
+
+  # Config and CLI
+  - pyyaml
+  - python-dateutil
+
+  # Visualization (optional, for notebooks)
+  - matplotlib
+  - cartopy
+  - jupyter
+
+  - pip:
+    # Copernicus CDS API
+    - cdsapi
+
+    # HRRR GRIB2 reading + AWS S3 streaming
+    - cfgrib
+    - s3fs
+    - eccodes
+
+    # Testing
+    - pytest
+    - pytest-cov

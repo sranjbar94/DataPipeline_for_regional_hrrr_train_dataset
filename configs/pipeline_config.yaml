@@ -1,0 +1,126 @@
+# =============================================================
+# CorrDiff Regional HRRR Dataset Pipeline — Master Config
+# =============================================================
+# All parameters are read by src/pipeline/config.py.
+# Override any value on the CLI: --config.dataset.n_samples 500
+
+# -----------------------------------------------------------
+# Dataset identity
+# -----------------------------------------------------------
+dataset:
+  name: regional_hrrr_train_dataset
+  version: "1.0"
+  description: >
+    CorrDiff training dataset for CONUS ocean pixels.
+    ERA5 (0.25 deg, 8x8 patches) -> HRRR (~3 km, 64x64 patches).
+    Ocean pixels only, 2015-2025, random day+hour sampling.
+
+# -----------------------------------------------------------
+# Spatial domain  (HRRR CONUS coverage with buffer)
+# -----------------------------------------------------------
+domain:
+  lon_min: -140.0
+  lon_max:  -55.0
+  lat_min:   18.0
+  lat_max:   56.0
+
+# -----------------------------------------------------------
+# Temporal range
+# -----------------------------------------------------------
+time:
+  date_start: "2015-01-01"
+  date_end:   "2025-12-31"
+  sampling: random          # options: random | stratified_season | fixed_hours
+
+# -----------------------------------------------------------
+# Patch geometry
+# -----------------------------------------------------------
+patches:
+  era5_patch_size: 8        # 8x8 ERA5 pixels = ~2deg x 2deg footprint
+  hrrr_patch_size: 64       # 64x64 HRRR pixels = ~192km x 192km
+  era5_resolution: 0.25     # degrees
+
+# -----------------------------------------------------------
+# Ocean masking
+# -----------------------------------------------------------
+ocean:
+  lsm_threshold:    0.2     # ERA5 lsm < this → ocean pixel
+  min_ocean_frac:   0.6     # patch must be >=60% ocean
+
+# -----------------------------------------------------------
+# Sampling
+# -----------------------------------------------------------
+sampling:
+  n_samples:         200000
+  samples_per_ts:    50     # patches sampled per timestamp
+  random_seed:       42
+  allow_ts_repeats:  false  # set true only if date range too small
+
+# -----------------------------------------------------------
+# ERA5 variables
+# -----------------------------------------------------------
+era5:
+  single_level:
+    - "2m_temperature"                         # t2m
+    - "2m_dewpoint_temperature"                # d2m  (→ specific humidity)
+    - "surface_pressure"                       # sp   (→ specific humidity)
+    - "mean_sea_level_pressure"                # msl
+    - "10m_u_component_of_wind"                # u10
+    - "10m_v_component_of_wind"                # v10
+    - "surface_solar_radiation_downwards"      # ssrd
+    - "surface_thermal_radiation_downwards"    # strd
+    - "total_precipitation"                    # tp
+    - "snowfall"                               # sf
+    - "land_sea_mask"                          # lsm  (static, ocean mask)
+    - "total_column_water_vapour"              # tcwv
+
+  pressure_level:
+    variables: ["u_component_of_wind", "v_component_of_wind",
+                "geopotential", "temperature", "specific_humidity"]
+    levels: [1000, 850, 500, 250]
+
+# -----------------------------------------------------------
+# HRRR output variables (HR targets)
+# -----------------------------------------------------------
+hrrr:
+  output_vars:
+    - name: "TMP_2maboveground"      # 2m temperature
+      short: "2t"
+    - name: "UGRD_10maboveground"    # 10m u-wind
+      short: "10u"
+    - name: "VGRD_10maboveground"    # 10m v-wind
+      short: "10v"
+    - name: "APCP_surface"           # accumulated precipitation
+      short: "tp"
+    - name: "DSWRF_surface"          # downward shortwave radiation
+      short: "ssrd"
+    - name: "DLWRF_surface"          # downward longwave radiation
+      short: "strd"
+    - name: "PRES_surface"           # surface pressure
+      short: "sp"
+    - name: "SPFH_2maboveground"     # specific humidity
+      short: "q"
+    - name: "WEASD_surface"          # snow water equivalent
+      short: "sf"
+
+  s3_bucket: "noaa-hrrr-bdp-pds"
+  forecast_hour: 0                   # f00 = analysis hour
+
+# -----------------------------------------------------------
+# Storage
+# -----------------------------------------------------------
+storage:
+  era5_raw_dir:   "data/era5_raw"        # downloaded ERA5 monthly files
+  output_dir:     "data/output"          # final NetCDF written here
+  output_filename: "regional_hrrr_train_dataset.nc"
+  checkpoint_dir: "data/checkpoints"     # resume support
+  checkpoint_freq: 1000                  # save every N samples
+  compression_level: 4                   # NetCDF zlib level (1-9)
+
+# -----------------------------------------------------------
+# Logging
+# -----------------------------------------------------------
+logging:
+  level: INFO
+  log_freq: 100                          # print progress every N samples
+  log_dir: "logs"
