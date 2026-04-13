@@ -1,10 +1,8 @@
 # DataPipeline_for_regional_hrrr_train_dataset
 
-A two-stage data pipeline that builds a **regional CorrDiff training dataset** matching the HRRR-Mini schema used by [NVIDIA PhysicsNeMo CorrDiff](https://github.com/NVIDIA/physicsnemo).
+A two-stage data pipeline that builds a regional CorrDiff training dataset matching the HRRR-Mini schema used by NVIDIA PhysicsNeMo CorrDiff.
 
-The pipeline downscales **ERA5 reanalysis** (0.25°, ~25 km) to **HRRR operational data** (~3 km), sampling ocean pixels within the CONUS/HRRR domain. The output NetCDF drops directly into CorrDiff's existing dataset loader without any code changes.
-
----
+The pipeline downscales ERA5 reanalysis (0.25°, ~25 km) to HRRR operational data (~3 km), sampling ocean pixels within the CONUS/HRRR domain. The output NetCDF drops directly into CorrDiff's existing dataset loader without any code changes.
 
 ## Overview
 
@@ -26,7 +24,7 @@ ERA5 (0.25°, global)          HRRR (3 km, CONUS)
 **Output (HRRR HR):** 9 channels matching the 9 Oceananigans surface forcing variables:
 
 | # | Variable | ERA5 field | HRRR field |
-|---|----------|-----------|-----------| 
+|---|----------|-----------|------------|
 | 1 | Surface air temperature | t2m | TMP_2maboveground |
 | 2 | Sea level pressure | msl | PRES_surface |
 | 3 | Specific humidity | derived (d2m + sp) | SPFH_2maboveground |
@@ -37,22 +35,13 @@ ERA5 (0.25°, global)          HRRR (3 km, CONUS)
 | 8 | Rainfall rate | tp | APCP_surface |
 | 9 | Snowfall rate | sf | WEASD_surface |
 
-**Sampling:** 200,000 samples, ocean pixels only (ERA5 land-sea mask < 0.2), randomly drawn from **2015–2025**.
-
----
+**Sampling:** 200,000 samples, ocean pixels only (ERA5 land-sea mask < 0.2), randomly drawn from 2015–2025.
 
 ## ERA5 download strategy — daily requests
 
-The ERA5 downloader requests data **one day at a time** (all 24 hours per request).
-This is intentional: the CDS API enforces a per-request volume cap (~2 GB), and a
-single monthly request over the full CONUS domain exceeds that limit, causing
-`Request too large` errors. Splitting by day keeps each request well within the cap.
+The ERA5 downloader requests data one day at a time (all 24 hours per request). This is intentional: the CDS API enforces a per-request volume cap (~2 GB), and a single monthly request over the full CONUS domain exceeds that limit, causing `Request too large` errors. Splitting by day keeps each request well within the cap.
 
-Each daily file is ~50–150 MB. The downloader skips files that already exist, so
-interrupted runs resume safely. On failure it retries up to 3 times with exponential
-back-off before logging the task as failed.
-
----
+Each daily file is ~50–150 MB. The downloader skips files that already exist, so interrupted runs resume safely. On failure it retries up to 3 times with exponential back-off before logging the task as failed.
 
 ## Repository structure
 
@@ -60,30 +49,36 @@ back-off before logging the task as failed.
 DataPipeline_for_regional_hrrr_train_dataset/
 ├── run_pipeline.py               # single CLI entry point for all stages
 ├── environment.yml               # reproducible conda environment
-├── pipeline_config.yaml          # all parameters — edit here, not in code
-├── era5_downloader.py            # Stage 1: daily ERA5 download via CDS API
-├── era5_reader.py                # Stage 2: lazy ERA5 patch reader
-├── hrrr_fetcher.py               # Stage 2: HRRR patch streamer from AWS S3
-├── dataset_builder.py            # Stage 2: main sampling loop
-├── nc_writer.py                  # Stage 2: NetCDF writer (HRRR-Mini schema)
-├── compute_stats.py              # Stage 3: stats.json for CorrDiff normalization
-├── config.py                     # YAML config loader
-├── logger.py                     # shared logger
-├── time_sampler.py               # random timestamp sampler with resume support
-├── smoke_test.sh                 # quick dry-run validation (no downloads needed)
-├── transfer_to_hpc.sh            # rsync final NetCDF to Yale Bouchet HPC
-├── test_nc_schema.py             # NetCDF schema compliance tests
-└── test_time_sampler.py          # timestamp sampler unit tests
+├── configs/
+│   └── pipeline_config.yaml      # all parameters — edit here, not in code
+├── src/
+│   ├── pipeline/
+│   │   ├── era5_downloader.py    # Stage 1: bulk ERA5 download via CDS API
+│   │   ├── era5_reader.py        # Stage 2: lazy ERA5 patch reader
+│   │   ├── hrrr_fetcher.py       # Stage 2: HRRR patch streamer from AWS S3
+│   │   ├── dataset_builder.py    # Stage 2: main sampling loop
+│   │   ├── nc_writer.py          # Stage 2: NetCDF writer (HRRR-Mini schema)
+│   │   └── compute_stats.py      # Stage 3: stats.json for CorrDiff normalization
+│   └── utils/
+│       ├── config.py             # YAML config loader
+│       ├── logger.py             # shared logger
+│       └── time_sampler.py       # random timestamp sampler with resume support
+├── scripts/
+│   ├── smoke_test.sh             # quick dry-run validation (no downloads needed)
+│   └── transfer_to_hpc.sh        # rsync final NetCDF to Yale Bouchet HPC
+├── tests/
+│   ├── test_nc_schema.py         # NetCDF schema compliance tests
+│   └── test_time_sampler.py      # timestamp sampler unit tests
+├── notebooks/                    # exploratory notebooks (not tracked in git)
+└── docs/                         # additional documentation
 ```
-
----
 
 ## Setup
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/DataPipeline_for_regional_hrrr_train_dataset.git
+git clone https://github.com/sranjbar94/DataPipeline_for_regional_hrrr_train_dataset.git
 cd DataPipeline_for_regional_hrrr_train_dataset
 ```
 
@@ -105,27 +100,21 @@ key: YOUR-UID:YOUR-API-KEY
 
 Get your key at [cds.climate.copernicus.eu](https://cds.climate.copernicus.eu).
 
----
-
 ## Quick start — local dry run (no downloads)
 
 Test the full pipeline end-to-end with synthetic data in under a minute:
 
 ```bash
-bash smoke_test.sh
+bash scripts/smoke_test.sh
 ```
 
-This generates 50 samples using synthetic HRRR patches (no S3 calls, no ERA5 needed)
-and prints the projected size of the full 200k dataset.
-
----
+This generates 50 samples using synthetic HRRR patches (no S3 calls, no ERA5 needed) and prints the projected size of the full 200k dataset.
 
 ## Recommended workflow
 
 ### Step 1 — Test run (10 days in Jan 2015)
 
-Run this first to confirm your CDS credentials, S3 access, and file paths all work
-before committing to the full 10-year download.
+Run this first to confirm your CDS credentials, S3 access, and file paths all work before committing to the full 10-year download.
 
 ```bash
 # Download 10 days of ERA5 (2015-01-01 to 2015-01-10)
@@ -142,8 +131,6 @@ python run_pipeline.py stats
 ```
 
 If all three stages complete without errors, you are ready for the full run.
-
----
 
 ### Step 2 — Full 10-year run (2015–2025)
 
@@ -166,10 +153,7 @@ python run_pipeline.py stats
 python run_pipeline.py all
 ```
 
-The download is resumable — re-running `download` skips files that already exist.
-The build is also resumable via the checkpoint at `data/checkpoints/build_checkpoint.json`.
-
----
+The download is resumable — re-running `download` skips files that already exist. The build is also resumable via the checkpoint at `data/checkpoints/build_checkpoint.json`.
 
 ## Additional CLI options
 
@@ -185,11 +169,9 @@ python run_pipeline.py build --dry_run --n_samples 500
 python run_pipeline.py build --n_samples 500 --samples_per_ts 5
 ```
 
----
-
 ## Configuration
 
-All parameters are in `pipeline_config.yaml`. Key settings:
+All parameters are in `configs/pipeline_config.yaml`. Key settings:
 
 ```yaml
 sampling:
@@ -205,11 +187,9 @@ ocean:
   min_ocean_frac: 0.6      # ≥60% of patch must be ocean
 ```
 
----
-
 ## Output NetCDF schema
 
-The output file matches the **HRRR-Mini schema** exactly:
+The output file matches the HRRR-Mini schema exactly:
 
 ```
 regional_hrrr_train_dataset.nc
@@ -225,14 +205,12 @@ regional_hrrr_train_dataset.nc
       latitude, longitude, elev_mean, lsm_mean
 ```
 
----
-
 ## Transfer to HPC
 
 Once the dataset is built locally, transfer it to Yale Bouchet:
 
 ```bash
-bash transfer_to_hpc.sh
+bash scripts/transfer_to_hpc.sh
 ```
 
 Then on the HPC, symlink it into the CorrDiff data directory:
@@ -246,18 +224,13 @@ ln -s ~/scratch_pi_ey239/sr2723/corrdiff/data/stats.json \
       data/regional_hrrr/stats.json
 ```
 
----
-
 ## Running tests
 
 ```bash
-pytest test_nc_schema.py test_time_sampler.py -v
+pytest tests/test_nc_schema.py tests/test_time_sampler.py -v
 ```
 
-The test suite validates the NetCDF schema, time encoding, and timestamp sampler
-without requiring any downloaded data.
-
----
+The test suite validates the NetCDF schema, time encoding, and timestamp sampler without requiring any downloaded data.
 
 ## Storage estimates
 
@@ -268,19 +241,15 @@ without requiring any downloaded data.
 | regional_hrrr_train_dataset.nc (200k samples) | 100–400 GB |
 | stats.json | < 1 MB |
 
-Run `bash smoke_test.sh` first — it prints the projected size based on 50 actual samples.
-
----
+Run `bash scripts/smoke_test.sh` first — it prints the projected size based on 50 actual samples.
 
 ## Related
 
 - [NVIDIA PhysicsNeMo CorrDiff](https://github.com/NVIDIA/physicsnemo)
 - [CorrDiff paper](https://arxiv.org/abs/2309.15214)
-- [Oceananigans.jl](https://clima.github.io/OceananigansDocumentation/stable/)
+- [Oceananigans.jl](https://github.com/CliMA/Oceananigans.jl)
 - [ERA5 on Copernicus CDS](https://cds.climate.copernicus.eu)
 - [HRRR on AWS Open Data](https://registry.opendata.aws/noaa-hrrr-pds/)
-
----
 
 ## License
 
