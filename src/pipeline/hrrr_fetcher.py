@@ -1,20 +1,17 @@
 """
 HRRR S3 Fetcher — streams HRRR GRIB2 from AWS Open Data and extracts
-a 64×64 patch centred on a given (lat, lon) at a given datetime.
+a 64x64 patch centred on a given (lat, lon) at a given datetime.
 
 AWS bucket: s3://noaa-hrrr-bdp-pds  (anonymous access, no key needed)
-
-Requires:
-    pip install cfgrib s3fs eccodes herbie-data
 """
 
 from __future__ import annotations
 import os
 import tempfile
 import time
+import warnings
 from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 
@@ -22,18 +19,17 @@ from src.utils.logger import get_logger
 
 log = get_logger("hrrr_fetcher")
 
-# HRRR variable name → cfgrib shortName mapping
-# cfgrib uses GRIB shortName or stepType to select fields
+# Map our output channel names -> list of candidate cfgrib variable names
 _HRRR_VAR_MAP = {
-    "2t":   dict(shortName="2t",   typeOfLevel="heightAboveGround", level=2),
-    "10u":  dict(shortName="10u",  typeOfLevel="heightAboveGround", level=10),
-    "10v":  dict(shortName="10v",  typeOfLevel="heightAboveGround", level=10),
-    "tp":   dict(shortName="tp",   typeOfLevel="surface"),
-    "ssrd": dict(shortName="dswrf", typeOfLevel="surface"),
-    "strd": dict(shortName="dlwrf", typeOfLevel="surface"),
-    "sp":   dict(shortName="sp",   typeOfLevel="surface"),
-    "q":    dict(shortName="q",    typeOfLevel="heightAboveGround", level=2),
-    "sf":   dict(shortName="weasd", typeOfLevel="surface"),
+    "2t":   ["t2m"],
+    "10u":  ["u10"],
+    "10v":  ["v10"],
+    "sp":   ["sp", "pres"],
+    "q":    ["sh2", "q2m", "q"],
+    "ssrd": ["sdswrf", "dswrf"],
+    "strd": ["sdlwrf", "dlwrf"],
+    "tp":   ["tp", "prate"],
+    "sf":   ["sdwe", "weasd", "sde"],
 }
 
 
@@ -49,11 +45,10 @@ def _find_patch_indices(
     lat: float, lon: float, patch_size: int
 ) -> tuple[int, int] | None:
     """Find row/col of nearest grid point; return None if too close to edge."""
-    # HRRR lons are 0–360
     lon360 = lon % 360
     dist = np.sqrt((lats - lat) ** 2 + (lons - lon360) ** 2)
-    r, c  = np.unravel_index(np.argmin(dist), dist.shape)
-    half  = patch_size // 2
+    r, c = np.unravel_index(np.argmin(dist), dist.shape)
+    half = patch_size // 2
     if r - half < 0 or c - half < 0:
         return None
     if r + half > lats.shape[0] or c + half > lats.shape[1]:
@@ -71,22 +66,10 @@ def fetch_hrrr_patch(
     dry_run: bool = False,
 ) -> dict[str, np.ndarray] | None:
     """
-    Download HRRR GRIB2 from S3 and extract a patch_size × patch_size
+    Download HRRR GRIB2 from S3 and extract a patch_size x patch_size
     window centred on (lat, lon).
 
-    Parameters
-    ----------
-    dt         : target datetime (UTC)
-    lat, lon   : patch centre (lon in –180..180)
-    patch_size : output patch size in HRRR pixels (default 64)
-    fxx        : forecast hour (0 = analysis)
-    retries    : number of S3 retry attempts
-    dry_run    : if True, return synthetic random data (for local testing)
-
-    Returns
-    -------
-    dict  {short_name: float32 array (patch_size, patch_size)}
-    None  on unrecoverable failure
+    Returns dict {short_name: float32 array} or None on failure.
     """
     if dry_run:
         log.debug(f"  [DRY_RUN] synthetic HRRR patch ({dt}, {lat:.2f}, {lon:.2f})")
@@ -96,6 +79,7 @@ def fetch_hrrr_patch(
     try:
         import s3fs
         import cfgrib
+        import xarray as xr
     except ImportError:
         raise ImportError(
             "cfgrib and s3fs are required for HRRR fetching.\n"
@@ -103,7 +87,7 @@ def fetch_hrrr_patch(
         )
 
     url = _s3_url(dt, fxx)
-    fs  = s3fs.S3FileSystem(anon=True)
+    fs = s3fs.S3FileSystem(anon=True)
 
     for attempt in range(1, retries + 1):
         tmp_path = None
@@ -117,38 +101,53 @@ def fetch_hrrr_patch(
                     tmp_path = tmp.name
 
             # Open all message groups in the GRIB2 file
-            datasets = cfgrib.open_datasets(tmp_path)
-            patch    = {}
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                datasets = cfgrib.open_datasets(tmp_path)
 
-            for short_name, filter_keys in _HRRR_VAR_MAP.items():
-                for ds in datasets:
-                    import xarray as xr
-                    xds = xr.Dataset(ds)
-                    # Try matching by variable name substring
-                    matched = None
-                    for vname in xds.data_vars:
-                        if vname.lower() == short_name.lower() or \
-                           vname.lower().startswith(short_name[:3].lower()):
-                            matched = vname
+            # Build a flat lookup: cfgrib_varname -> (xr.Dataset, varname)
+            all_vars = {}
+            for ds in datasets:
+                xds = xr.Dataset(ds)
+                for vname in xds.data_vars:
+                    # Skip variables with extra dimensions (pressure levels etc)
+                    shape = xds[vname].shape
+                    if len(shape) == 2:  # (y, x) only
+                        all_vars[vname.lower()] = (xds, vname)
+
+            log.debug(f"  [HRRR] available 2D vars: {sorted(all_vars.keys())}")
+
+            patch = {}
+            rc_cache = {}  # cache patch indices per grid shape
+
+            for out_name, candidates in _HRRR_VAR_MAP.items():
+                for cand in candidates:
+                    if cand.lower() in all_vars:
+                        xds, vname = all_vars[cand.lower()]
+                        lats = xds["latitude"].values
+                        lons = xds["longitude"].values
+
+                        grid_key = (lats.shape, lons.shape)
+                        if grid_key not in rc_cache:
+                            rc_cache[grid_key] = _find_patch_indices(
+                                lats, lons, lat, lon, patch_size
+                            )
+                        rc = rc_cache[grid_key]
+
+                        if rc is None:
+                            log.debug(f"    Patch centre too close to edge")
                             break
-                    if matched is None:
-                        continue
 
-                    lats = xds["latitude"].values
-                    lons = xds["longitude"].values
-                    rc   = _find_patch_indices(lats, lons, lat, lon, patch_size)
-                    if rc is None:
-                        log.debug(f"    Patch centre too close to edge: {lat},{lon}")
-                        continue
-
-                    r, c = rc
-                    half = patch_size // 2
-                    arr  = xds[matched].values[r - half: r + half,
-                                               c - half: c + half]
-                    if arr.shape == (patch_size, patch_size):
-                        patch[short_name] = arr.astype(np.float32)
+                        r, c = rc
+                        half = patch_size // 2
+                        arr = xds[vname].values[r - half: r + half,
+                                                c - half: c + half]
+                        if arr.shape == (patch_size, patch_size):
+                            patch[out_name] = arr.astype(np.float32)
                         break
 
+            if patch:
+                log.debug(f"  [HRRR] extracted {len(patch)}/{len(_HRRR_VAR_MAP)} vars")
             return patch if patch else None
 
         except Exception as e:
