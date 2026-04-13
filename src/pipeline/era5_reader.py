@@ -13,6 +13,8 @@ from types import SimpleNamespace
 
 import numpy as np
 import xarray as xr
+import zipfile
+import shutil
 
 from src.utils.logger import get_logger
 
@@ -65,6 +67,31 @@ class ERA5Reader:
         return (self.era5_dir / "pressure_level" /
                 f"era5_pl_{d.strftime('%Y%m%d')}.nc")
 
+    def _unzip_if_needed(self, fpath: Path) -> Path:
+        """If fpath is actually a ZIP archive, extract the .nc inside it."""
+        # Quick check: NetCDF4 files start with bytes 0x89484446 or CDF\x01/\x02
+        with open(fpath, "rb") as f:
+            magic = f.read(4)
+        if magic[:2] == b"PK":  # ZIP magic bytes
+            log.info(f"  Unzipping {fpath.name} ...")
+            extract_dir = fpath.parent / f"_unzip_{fpath.stem}"
+            extract_dir.mkdir(exist_ok=True)
+            with zipfile.ZipFile(fpath, "r") as zf:
+                zf.extractall(extract_dir)
+            # Find the .nc file inside
+            nc_files = list(extract_dir.glob("*.nc"))
+            if not nc_files:
+                raise FileNotFoundError(
+                    f"No .nc file found inside ZIP: {fpath}"
+                )
+            # Replace the ZIP with the actual NetCDF
+            nc_file = nc_files[0]
+            fpath.unlink()
+            shutil.move(str(nc_file), str(fpath))
+            shutil.rmtree(extract_dir)
+            log.info(f"  Extracted: {fpath.name}")
+        return fpath
+
     def _load_sl(self, year: int, month: int, day: int) -> xr.Dataset:
         """Load (and cache) a single-level daily file."""
         d = date(year, month, day)
@@ -75,6 +102,7 @@ class ERA5Reader:
                     f"ERA5 single-level file not found: {fpath}\n"
                     "Run `python run_pipeline.py download` first."
                 )
+            fpath = self._unzip_if_needed(fpath)
             self._sl_cache[d] = xr.open_dataset(str(fpath), engine="netcdf4")
             if len(self._sl_cache) > 4:
                 oldest = min(self._sl_cache)
@@ -91,6 +119,7 @@ class ERA5Reader:
                     f"ERA5 pressure-level file not found: {fpath}\n"
                     "Run `python run_pipeline.py download` first."
                 )
+            fpath = self._unzip_if_needed(fpath)
             self._pl_cache[d] = xr.open_dataset(str(fpath), engine="netcdf4")
             if len(self._pl_cache) > 4:
                 oldest = min(self._pl_cache)
