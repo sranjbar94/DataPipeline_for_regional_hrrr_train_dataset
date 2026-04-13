@@ -126,7 +126,7 @@ class TestNCSchema:
             ds    = nc.Dataset(str(path))
             hours = float(ds["time"][0])
             ds.close()
-            expected = (dt - datetime(2010, 1, 1)).total_seconds() / 3600
+            expected = (dt - datetime(2015, 1, 1)).total_seconds() / 3600
             assert abs(hours - expected) < 1e-3
 
     def test_no_nan_in_written_data(self, minimal_cfg,
