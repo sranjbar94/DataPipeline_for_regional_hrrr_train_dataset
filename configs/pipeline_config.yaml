@@ -104,7 +104,7 @@ hrrr:
       short: "sf"
 
   s3_bucket: "noaa-hrrr-bdp-pds"
-  forecast_hour: 0                   # f00 = analysis hour
+  forecast_hour: 1                   # f00 = analysis hour
 
 # -----------------------------------------------------------
 # Storage

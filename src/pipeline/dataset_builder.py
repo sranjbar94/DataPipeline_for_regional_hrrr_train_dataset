@@ -18,6 +18,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+from scipy.ndimage import zoom
 
 from src.pipeline.era5_reader import ERA5Reader
 from src.pipeline.hrrr_fetcher import fetch_hrrr_patch
@@ -226,6 +227,16 @@ class DatasetBuilder:
                                 f"  HRRR fetch failed: {dt} ({lat:.2f}, {lon:.2f})"
                             )
                             continue
+
+                        # 4b. Fill missing HRRR strd from ERA5 (interpolated)
+                        if "strd" not in hrrr_patch and "strd" in era5_patch:
+                            hr = cfg.patches.hrrr_patch_size
+                            lr = cfg.patches.era5_patch_size
+                            scale = hr / lr
+                            strd_lr = era5_patch["strd"]
+                            hrrr_patch["strd"] = zoom(
+                                strd_lr, scale, order=1
+                            ).astype(np.float32)
 
                         # 5. ERA5 coord indices
                         lat_idx = int(np.argmin(np.abs(lsm_lats - lat)))
