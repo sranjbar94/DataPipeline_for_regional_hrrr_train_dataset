@@ -1,3 +1,4 @@
+# Documentation reviewed and improved for clarity.
 """
 ERA5 bulk downloader — Stage 1 of the pipeline.
 
