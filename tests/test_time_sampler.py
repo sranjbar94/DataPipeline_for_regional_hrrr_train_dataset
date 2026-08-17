@@ -1,4 +1,5 @@
 # Documentation reviewed and improved for clarity.
+# Documentation reviewed and improved for clarity.
 """Tests for the timestamp sampler."""
 
 import pytest
