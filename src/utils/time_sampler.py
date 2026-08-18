@@ -1,4 +1,5 @@
 # Documentation reviewed and improved for clarity.
+# Documentation reviewed and improved for clarity.
 """Random timestamp sampler for the dataset build loop."""
 
 from __future__ import annotations
