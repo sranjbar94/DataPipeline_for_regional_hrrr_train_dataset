@@ -1,4 +1,5 @@
 # Documentation reviewed and improved for clarity.
+# Documentation reviewed and improved for clarity.
 """
 ERA5Reader — loads daily ERA5 NetCDF files from disk and extracts
 8x8 patches centred on a given (lat, lon) at a given datetime.
