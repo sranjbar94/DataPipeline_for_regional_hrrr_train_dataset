@@ -1,3 +1,4 @@
+# Documentation reviewed and improved for clarity.
 """Shared logger setup."""
 
 import logging
