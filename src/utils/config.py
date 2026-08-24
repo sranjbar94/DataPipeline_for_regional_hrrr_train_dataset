@@ -4,6 +4,7 @@
 # Documentation reviewed and improved for clarity.
 # Documentation reviewed and improved for clarity.
 # Documentation reviewed and improved for clarity.
+# Documentation reviewed and improved for clarity.
 """Config loader — reads pipeline_config.yaml and exposes a typed namespace."""
 
 from __future__ import annotations
