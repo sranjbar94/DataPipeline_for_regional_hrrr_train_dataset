@@ -3,6 +3,7 @@
 # Documentation reviewed and improved for clarity.
 # Documentation reviewed and improved for clarity.
 # Documentation reviewed and improved for clarity.
+# Documentation reviewed and improved for clarity.
 """
 Compute stats.json — per-variable mean and std for CorrDiff normalization.
 Uses Welford's online algorithm so the full dataset never needs to fit in RAM.
