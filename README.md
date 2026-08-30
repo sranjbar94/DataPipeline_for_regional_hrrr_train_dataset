@@ -4,6 +4,8 @@
 
 > Docs pass: wording tightened, structure kept the same.
 
+> Docs pass: wording tightened, structure kept the same.
+
 A two-stage data pipeline that builds a regional CorrDiff training dataset matching the HRRR-Mini schema used by NVIDIA PhysicsNeMo CorrDiff.
 
 The pipeline downscales ERA5 reanalysis (0.25°, ~25 km) to HRRR operational data (~3 km), sampling ocean pixels within the CONUS/HRRR domain. The output NetCDF drops directly into CorrDiff's existing dataset loader without any code changes.
