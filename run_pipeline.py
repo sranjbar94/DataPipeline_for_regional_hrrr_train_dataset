@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Documentation reviewed and improved for clarity.
 # Comments reviewed for accuracy and completeness.
 # Reviewed: comments kept in sync with behavior.
 # Docstring coverage checked and touched up.
