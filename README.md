@@ -6,6 +6,8 @@
 
 > Documentation reviewed and polished for clarity.
 
+> Documentation reviewed and polished for clarity.
+
 > Docs pass: wording tightened, structure kept the same.
 
 > Docs pass: wording tightened, structure kept the same.
