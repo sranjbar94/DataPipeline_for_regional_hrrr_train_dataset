@@ -1,4 +1,5 @@
 # Reviewed: comments kept in sync with behavior.
+# Reviewed: comments kept in sync with behavior.
 # Documentation reviewed and improved for clarity.
 # Inline documentation clarified.
 # Docstring coverage checked and touched up.
