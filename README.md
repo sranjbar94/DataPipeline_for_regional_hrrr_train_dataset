@@ -2,6 +2,8 @@
 
 > Docs pass: wording tightened, structure kept the same.
 
+> Docs pass: wording tightened, structure kept the same.
+
 > Documentation reviewed and polished for clarity.
 
 > Reviewed for readability; content unchanged.
