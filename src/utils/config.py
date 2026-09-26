@@ -1,3 +1,4 @@
+# Inline documentation clarified.
 # Comments reviewed for accuracy and completeness.
 # Comments reviewed for accuracy and completeness.
 # Comments reviewed for accuracy and completeness.
