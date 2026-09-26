@@ -1,3 +1,4 @@
+# Documentation reviewed and improved for clarity.
 # Comments reviewed for accuracy and completeness.
 # Inline documentation clarified.
 # Reviewed: comments kept in sync with behavior.
