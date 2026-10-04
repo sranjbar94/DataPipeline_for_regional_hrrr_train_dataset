@@ -1,3 +1,4 @@
+# Reviewed: comments kept in sync with behavior.
 # Comments reviewed for accuracy and completeness.
 # Comments reviewed for accuracy and completeness.
 # Reviewed: comments kept in sync with behavior.
