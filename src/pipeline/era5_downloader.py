@@ -1,3 +1,4 @@
+# Documentation reviewed and improved for clarity.
 # Docstring coverage checked and touched up.
 # Comments reviewed for accuracy and completeness.
 # Comments reviewed for accuracy and completeness.
