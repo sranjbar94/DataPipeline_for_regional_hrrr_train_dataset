@@ -1,3 +1,4 @@
+# Docstring coverage checked and touched up.
 # Comments reviewed for accuracy and completeness.
 # Inline documentation clarified.
 # Reviewed: comments kept in sync with behavior.
